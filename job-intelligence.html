@@ -35,7 +35,7 @@ code{font-family:monospace;background:rgba(0,0,0,0.07);padding:1px 5px;border-ra
 .avatar{width:30px;height:30px;border-radius:50%;background:var(--pur-bg);color:var(--pur-d);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600}
 
 /* Settings popover */
-.settings-pop{position:absolute;top:42px;right:0;width:300px;background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--rl);box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:1rem 1.1rem;z-index:50;display:none}
+.settings-pop{position:absolute;top:42px;right:0;width:340px;max-height:80vh;overflow-y:auto;background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--rl);box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:1rem 1.1rem;z-index:50;display:none}
 .settings-pop.open{display:block}
 .settings-pop-head{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .settings-row{display:flex;gap:8px}
@@ -227,6 +227,21 @@ code{font-family:monospace;background:rgba(0,0,0,0.07);padding:1px 5px;border-ra
       </div>
       <p class="note">Free at <a href="https://console.groq.com" target="_blank">console.groq.com</a>. Stored in your browser only.</p>
       <button class="btn-clear" id="clearKeyBtn" onclick="clearKey()" style="display:none">Remove saved key</button>
+
+      <div class="settings-pop-head" style="margin-top:16px">Second key <span style="font-weight:400;color:var(--text3);font-size:11px">(optional)</span> <span class="badge" id="key2-saved">Saved ✓</span></div>
+      <div class="settings-row">
+        <input type="password" id="api-key2-settings" placeholder="gsk_..." autocomplete="off"/>
+        <button class="btn-sm" onclick="saveKey2()">Save</button>
+      </div>
+      <p class="note">On Groq's free tier, each key has its own rate limit. Adding a second key roughly doubles how much analysis can run in parallel per search — useful if searches are failing due to rate limits. Use a separate free account's key, not the same one twice.</p>
+      <button class="btn-clear" id="clearKey2Btn" onclick="clearKey2()" style="display:none">Remove second key</button>
+
+      <div class="settings-pop-head" style="margin-top:16px">Batch stagger delay</div>
+      <div class="settings-row">
+        <input type="number" id="staggerDelay" min="0" max="15" step="0.5" value="3" style="flex:1" onchange="saveStaggerDelay()"/>
+        <span style="font-size:12px;color:var(--text2);align-self:center">seconds</span>
+      </div>
+      <p class="note">Pause between a key's own batches, to stay under its per-minute token limit. Lower = faster searches but more risk of rate-limit errors; higher = slower but safer. 3s is a reasonable default on the free tier.</p>
     </div>
   </div>
 </div>
@@ -477,12 +492,49 @@ function clearKey(){
   document.getElementById('settingsPop').classList.remove('open');
 }
 function getKey(){return localStorage.getItem('groq_key')||''}
+
+// Second key — entirely optional, used to roughly double effective Groq
+// rate limits by splitting batch analysis across two independent keys.
+function saveKey2(){
+  const k=document.getElementById('api-key2-settings').value.trim();
+  if(!k)return;
+  localStorage.setItem('groq_key2',k);
+  document.getElementById('api-key2-settings').value='';
+  refreshKeyUI();
+}
+function clearKey2(){
+  localStorage.removeItem('groq_key2');
+  refreshKeyUI();
+}
+function getKey2(){return localStorage.getItem('groq_key2')||''}
+
+// Stagger delay (seconds) between a single key's own batches. Saved as a
+// plain number string; getStaggerDelay() always returns a sane numeric
+// fallback even if localStorage has something unexpected in it.
+function saveStaggerDelay(){
+  const val=parseFloat(document.getElementById('staggerDelay').value);
+  const safe=(!isNaN(val) && val>=0 && val<=15) ? val : 3;
+  localStorage.setItem('stagger_delay',String(safe));
+  document.getElementById('staggerDelay').value=safe;
+}
+function getStaggerDelay(){
+  const stored=parseFloat(localStorage.getItem('stagger_delay'));
+  return (!isNaN(stored) && stored>=0 && stored<=15) ? stored : 3;
+}
+
 function refreshKeyUI(){
   const hasKey=!!getKey();
   document.getElementById('keyBanner').style.display = hasKey ? 'none' : 'block';
   document.getElementById('key-saved').style.display = hasKey ? 'inline-block' : 'none';
   document.getElementById('clearKeyBtn').style.display = hasKey ? 'inline-block' : 'none';
   document.getElementById('api-key-settings').placeholder = hasKey ? 'Saved — hidden for security' : 'gsk_...';
+
+  const hasKey2=!!getKey2();
+  document.getElementById('key2-saved').style.display = hasKey2 ? 'inline-block' : 'none';
+  document.getElementById('clearKey2Btn').style.display = hasKey2 ? 'inline-block' : 'none';
+  document.getElementById('api-key2-settings').placeholder = hasKey2 ? 'Saved — hidden for security' : 'gsk_...';
+
+  document.getElementById('staggerDelay').value = getStaggerDelay();
 }
 refreshKeyUI();
 
@@ -714,22 +766,53 @@ Rules: cover EVERY job listed above, in order, using its exact JOB_ID. 4-8 skill
 
 // Splits all jobs into N batches (default 4) and runs them in parallel.
 // Returns: { byJobId: Map<jobId, jobResult>, byCompany: Map<companyNameLower, companyResult>, errors: string[] }
+function sleep(ms){ return new Promise(resolve=>setTimeout(resolve,ms)); }
+
+// Splits all jobs into `numBatches` batches and analyses them using whichever
+// Groq key(s) are saved. If a second key is set, batches alternate between
+// the two keys (key A: batches 0,2 / key B: batches 1,3) — each key has its
+// own independent rate limit on Groq's side, so this roughly doubles the
+// total throughput available. Batches sharing the SAME key are staggered by
+// the saved delay to stay under that key's own tokens-per-minute ceiling;
+// batches on DIFFERENT keys need no such delay between them, since they
+// don't share a limit.
 async function runBatchedAnalysis(allJobs,key,numBatches=4){
+  const key2=getKey2();
+  const hasTwoKeys=!!key2;
+  const staggerMs=getStaggerDelay()*1000;
+
   const batches=[];
   const batchSize=Math.ceil(allJobs.length/numBatches);
   for(let i=0;i<allJobs.length;i+=batchSize){
     batches.push(allJobs.slice(i,i+batchSize));
   }
-  // allJobs.length may be < numBatches*batchSize at the tail; filter empties just in case
   const nonEmptyBatches=batches.filter(b=>b.length);
 
-  const settled=await Promise.allSettled(nonEmptyBatches.map(b=>analyseJobBatch(b,key)));
+  // Assign each batch to a key, and compute how long to wait before firing
+  // it, based on how many batches already came before it ON THE SAME KEY.
+  const tasks=nonEmptyBatches.map((batchJobs,i)=>{
+    const assignedKey = hasTwoKeys ? (i%2===0 ? key : key2) : key;
+    const keyLabel = hasTwoKeys ? (i%2===0 ? 'A' : 'B') : 'A';
+    // How many prior batches used this same key? That's how many stagger
+    // delays need to elapse before this one is safe to fire.
+    const priorSameKeyCount = hasTwoKeys
+      ? Math.floor(i/2) // every 2nd batch shares a key when alternating A/B
+      : i;              // single-key mode: every batch shares the one key
+    const delayMs = priorSameKeyCount * staggerMs;
+    return {batchJobs, assignedKey, keyLabel, batchIndex:i, delayMs};
+  });
+
+  const settled=await Promise.allSettled(tasks.map(async t=>{
+    if(t.delayMs>0) await sleep(t.delayMs);
+    return analyseJobBatch(t.batchJobs,t.assignedKey);
+  }));
 
   const byJobId=new Map();
   const byCompany=new Map(); // first-seen company writeup wins; later duplicates are skipped
   const errors=[];
 
   settled.forEach((res,i)=>{
+    const t=tasks[i];
     if(res.status==='fulfilled'){
       res.value.forEach(jobResult=>{
         if(!jobResult.jobId) return;
@@ -741,8 +824,8 @@ async function runBatchedAnalysis(allJobs,key,numBatches=4){
       });
     } else {
       const msg=res.reason?.message||'Unknown error';
-      errors.push(`Batch ${i+1} failed: ${msg}`);
-      console.warn(`[Analysis batch ${i+1}]`,msg);
+      errors.push(`Batch ${t.batchIndex+1} (key ${t.keyLabel}) failed: ${msg}`);
+      console.warn(`[Analysis batch ${t.batchIndex+1}, key ${t.keyLabel}]`,msg);
     }
   });
 
