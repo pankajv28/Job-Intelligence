@@ -1,0 +1,12 @@
+{
+  "name": "remote-job-intelligence-server",
+  "version": "1.0.0",
+  "description": "Proxy server for Remote Job Intelligence — fetches job listings from public APIs/RSS feeds for the frontend.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
