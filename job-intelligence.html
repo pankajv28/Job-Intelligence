@@ -238,7 +238,7 @@ code{font-family:monospace;background:rgba(0,0,0,0.07);padding:1px 5px;border-ra
 
       <div class="settings-pop-head" style="margin-top:16px">Batch stagger delay</div>
       <div class="settings-row">
-        <input type="number" id="staggerDelay" min="0" max="15" step="0.5" value="3" style="flex:1" onchange="saveStaggerDelay()"/>
+        <input type="number" id="staggerDelay" min="0" max="60" step="1" value="3" style="flex:1" onchange="saveStaggerDelay()"/>
         <span style="font-size:12px;color:var(--text2);align-self:center">seconds</span>
       </div>
       <p class="note">Pause between a key's own batches, to stay under its per-minute token limit. Lower = faster searches but more risk of rate-limit errors; higher = slower but safer. 3s is a reasonable default on the free tier.</p>
@@ -513,13 +513,13 @@ function getKey2(){return localStorage.getItem('groq_key2')||''}
 // fallback even if localStorage has something unexpected in it.
 function saveStaggerDelay(){
   const val=parseFloat(document.getElementById('staggerDelay').value);
-  const safe=(!isNaN(val) && val>=0 && val<=15) ? val : 3;
+  const safe=(!isNaN(val) && val>=0 && val<=60) ? val : 3;
   localStorage.setItem('stagger_delay',String(safe));
   document.getElementById('staggerDelay').value=safe;
 }
 function getStaggerDelay(){
   const stored=parseFloat(localStorage.getItem('stagger_delay'));
-  return (!isNaN(stored) && stored>=0 && stored<=15) ? stored : 3;
+  return (!isNaN(stored) && stored>=0 && stored<=60) ? stored : 3;
 }
 
 function refreshKeyUI(){
