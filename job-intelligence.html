@@ -317,7 +317,7 @@ code{font-family:monospace;background:rgba(0,0,0,0.07);padding:1px 5px;border-ra
 // as during development) or as the deployed static site — and points at the
 // matching backend accordingly. Update DEPLOYED_API_URL once you have your
 // actual Render backend URL (Step 6 below).
-const DEPLOYED_API_URL = 'https://REPLACE-WITH-YOUR-RENDER-BACKEND-URL.onrender.com';
+const DEPLOYED_API_URL = 'https://job-intelligence.onrender.com';
 const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:';
 const API = isLocal ? 'http://localhost:3131' : DEPLOYED_API_URL;
 let activeSources = new Set(['remotive','jobicy','himalayas','remoteok','wwr']);
