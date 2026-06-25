@@ -27,7 +27,8 @@ code{font-family:monospace;background:rgba(0,0,0,0.07);padding:1px 5px;border-ra
 /* ── Top chrome ───────────────────────────────────────── */
 .topbar{height:var(--topbar-h);border-bottom:0.5px solid var(--border2);display:flex;align-items:center;justify-content:space-between;padding:0 18px;background:var(--bg);flex-shrink:0}
 .topbar-left{display:flex;align-items:center;gap:10px}
-.logo{width:28px;height:28px;background:var(--teal);border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0}
+.logo{width:28px;height:28px;border-radius:7px;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.logo svg{width:100%;height:100%;display:block}
 .logo-text{font-size:15px;font-weight:600}
 .topbar-right{display:flex;align-items:center;gap:8px;position:relative}
 .icon-btn{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);font-size:15px;border:none;background:none}
@@ -192,6 +193,18 @@ code{font-family:monospace;background:rgba(0,0,0,0.07);padding:1px 5px;border-ra
 .panel-tab{padding:9px 0;margin-right:18px;font-size:12.5px;color:var(--text2);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
 .panel-tab.active{color:var(--text);font-weight:500;border-bottom-color:var(--teal)}
 .panel-section{padding:18px 20px;font-size:13px;color:var(--text2);line-height:1.65}
+.job-desc-html p{margin:0 0 10px}
+.job-desc-html p:last-child{margin-bottom:0}
+.job-desc-html ul,.job-desc-html ol{margin:0 0 12px;padding-left:1.3em}
+.job-desc-html ul:last-child,.job-desc-html ol:last-child{margin-bottom:0}
+.job-desc-html li{margin-bottom:6px;line-height:1.55}
+.job-desc-html li:last-child{margin-bottom:0}
+.job-desc-html ul{list-style:disc}
+.job-desc-html ol{list-style:decimal}
+.job-desc-html h1,.job-desc-html h2,.job-desc-html h3,.job-desc-html h4{font-size:13px;font-weight:600;color:var(--text);margin:14px 0 6px}
+.job-desc-html h1:first-child,.job-desc-html h2:first-child,.job-desc-html h3:first-child,.job-desc-html h4:first-child{margin-top:0}
+.job-desc-html strong,.job-desc-html b{font-weight:600;color:var(--text)}
+.job-desc-html em,.job-desc-html i{font-style:italic}
 .panel-section-head{font-size:12px;font-weight:600;color:var(--text);margin:16px 0 8px}
 .panel-section-head:first-child{margin-top:0}
 .skill-pill{display:inline-block;font-size:11.5px;padding:4px 10px;border-radius:20px;background:var(--bg2);color:var(--text2);margin:0 6px 6px 0}
@@ -213,7 +226,24 @@ code{font-family:monospace;background:rgba(0,0,0,0.07);padding:1px 5px;border-ra
 
 <div class="topbar">
   <div class="topbar-left">
-    <div class="logo">R</div>
+    <div class="logo">
+      <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+        <defs>
+          <linearGradient id="logoG1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#8BE3BC"/>
+            <stop offset="100%" stop-color="#0A9A5B"/>
+          </linearGradient>
+          <linearGradient id="logoG2" x1="100%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#0B7A49"/>
+            <stop offset="100%" stop-color="#19B56F"/>
+          </linearGradient>
+        </defs>
+        <polygon points="256,70 390,150 256,230" fill="url(#logoG2)"/>
+        <polygon points="122,150 256,70 256,230" fill="url(#logoG1)"/>
+        <polygon points="122,150 122,340 256,420 256,230" fill="url(#logoG2)"/>
+        <polygon points="390,150 390,340 330,375 330,260 256,230" fill="url(#logoG1)"/>
+      </svg>
+    </div>
     <div class="logo-text">Remote Job Intelligence</div>
   </div>
   <div class="topbar-right">
@@ -238,10 +268,10 @@ code{font-family:monospace;background:rgba(0,0,0,0.07);padding:1px 5px;border-ra
 
       <div class="settings-pop-head" style="margin-top:16px">Batch stagger delay</div>
       <div class="settings-row">
-        <input type="number" id="staggerDelay" min="0" max="60" step="1" value="3" style="flex:1" onchange="saveStaggerDelay()"/>
+        <input type="number" id="staggerDelay" min="0" max="60" step="0.5" value="3" style="flex:1" onchange="saveStaggerDelay()"/>
         <span style="font-size:12px;color:var(--text2);align-self:center">seconds</span>
       </div>
-      <p class="note">Pause between a key's own batches, to stay under its per-minute token limit. Lower = faster searches but more risk of rate-limit errors; higher = slower but safer. 3s is a reasonable default on the free tier.</p>
+      <p class="note">Pause between a key's own batches, to stay under its per-minute token limit. With one key, total search wait ≈ 3 × this value (since 4 batches stagger sequentially). 3s is a reasonable starting point on the free tier; raise it if you're still seeing rate-limit failures.</p>
     </div>
   </div>
 </div>
@@ -620,12 +650,42 @@ function strip(html){
   d.innerHTML=html||'';
   return d.textContent.replace(/\s+/g,' ').trim().slice(0,700);
 }
-// Longer version for the detail panel's full description (vs the 700-char
-// truncated version sent to Groq for analysis)
-function stripFull(html){
-  const d=document.createElement('div');
-  d.innerHTML=html||'';
-  return d.textContent.replace(/\s+/g,' ').trim();
+// Sanitizes a job description's raw HTML for display in the Overview tab.
+// Unlike strip()/old stripFull(), this PRESERVES safe structural tags
+// (paragraphs, lists, emphasis) instead of flattening everything to plain
+// text — that flattening is exactly why bullet lists used to render as an
+// ugly wall of text with stray bullet characters and no real line breaks.
+// Only a small whitelist of tags survives; every attribute is stripped from
+// every element (so a malicious href="javascript:..." or onclick="..." from
+// a third-party job posting can never survive into the rendered page), and
+// any tag not on the whitelist is unwrapped to its text content rather than
+// dropped outright, so we don't lose real description content.
+const SAFE_DESCRIPTION_TAGS = new Set(['P','UL','OL','LI','BR','STRONG','EM','B','I','H1','H2','H3','H4']);
+function sanitizeDescriptionHtml(html){
+  const container=document.createElement('div');
+  container.innerHTML=html||'';
+
+  function clean(node){
+    // Walk children back-to-front so we can safely replace nodes in place
+    // without disturbing the indices of siblings we haven't visited yet.
+    const children=[...node.childNodes];
+    for(const child of children){
+      if(child.nodeType===3) continue; // text node — nothing to sanitize
+      if(child.nodeType!==1) { child.remove(); continue; } // comments etc — drop entirely
+      clean(child); // sanitize descendants first
+      if(SAFE_DESCRIPTION_TAGS.has(child.tagName)){
+        // Keep the tag, but strip every attribute (class, style, onclick, href, ...)
+        [...child.attributes].forEach(attr=>child.removeAttribute(attr.name));
+      } else {
+        // Not on the whitelist: unwrap it, keeping its text/children in place
+        // rather than discarding real description content along with the tag.
+        while(child.firstChild) node.insertBefore(child.firstChild, child);
+        child.remove();
+      }
+    }
+  }
+  clean(container);
+  return container.innerHTML.replace(/(<br\s*\/?>\s*){3,}/gi,'<br><br>'); // collapse excessive blank lines
 }
 
 // ── Company name → Levels.fyi slug ─────────────────────────────
@@ -1199,9 +1259,10 @@ function renderPanel(job,activeTab){
 
   let bodyHtml='';
   if(activeTab==='overview'){
+    const safeDescHtml=sanitizeDescriptionHtml(job.description);
     bodyHtml=`
       <div class="panel-section-head">Job description</div>
-      <p>${stripFull(job.description)||'No description provided by the source.'}</p>
+      <div class="job-desc-html">${safeDescHtml||'<p>No description provided by the source.</p>'}</div>
       ${(job.tags||[]).length?`<div class="panel-section-head">Tags</div><div>${job.tags.map(t=>`<span class="skill-pill">${t}</span>`).join('')}</div>`:''}
     `;
   } else if(activeTab==='skills'){
