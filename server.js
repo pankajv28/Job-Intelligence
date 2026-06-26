@@ -241,7 +241,7 @@ const server = http.createServer(async (req, res) => {
 
     // Jobicy proxy
     if (path === '/jobicy') {
-      const tag = (q.get('tag') || 'product-manager').toLowerCase().replace(/\s+/g, '-');
+      const tag = (q.get('tag') || 'product-manager').toLowerCase().trim();
       const apiUrl = `https://jobicy.com/api/v2/remote-jobs?count=25&tag=${encodeURIComponent(tag)}`;
       console.log('[Jobicy]', apiUrl);
       const data = await fetchUrl(apiUrl);
