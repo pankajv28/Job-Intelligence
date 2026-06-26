@@ -715,7 +715,7 @@ async function fetchRemotive(role){
   }));
 }
 async function fetchJobicy(role){
-  const tag=role.toLowerCase().replace(/\s+/g,'-');
+  const tag=role.toLowerCase().trim();
   const d=await fetchJSON(`${API}/jobicy?tag=${encodeURIComponent(tag)}`);
   return (d.jobs||[]).map(j=>({
     id:'jobicy_'+j.id, title:j.jobTitle||'', company:j.companyName||'',
