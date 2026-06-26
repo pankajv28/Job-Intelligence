@@ -85,6 +85,26 @@ function parseWWRRss(xml) {
   // more than expected (defensive against a malformed or unexpectedly large feed).
   const MAX_ITEMS_TO_PARSE = 100;
   const itemBlocks = xml.split('<item>').slice(1, MAX_ITEMS_TO_PARSE + 1);
+
+  // We Work Remotely's feed double-escapes the HTML inside its <description>
+  // CDATA block — i.e. the actual real tags (<p>, <strong>, <img>, ...) are
+  // stored as HTML entities (&lt;p&gt;, &lt;strong&gt;, ...) rather than as
+  // literal markup. Stripping the CDATA wrapper alone leaves those entities
+  // intact, so the frontend later sees what LOOKS like tags once a browser
+  // decodes them once via innerHTML, but they were never real markup to begin
+  // with — they render as literal visible text instead of being parsed as
+  // structure. Decoding entities here, server-side, turns them back into real
+  // characters, so the frontend's HTML parser can recognize them as actual tags.
+  function decodeEntities(str) {
+    return str
+      .replace(/&amp;/g, '&')   // must run before the others, or e.g. &amp;lt; would double-decode
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;|&apos;/g, "'")
+      .replace(/&nbsp;/g, ' ');
+  }
+
   for (const block of itemBlocks) {
     const get = (tag) => {
       const m = block.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
@@ -111,7 +131,7 @@ function parseWWRRss(xml) {
       position = title.slice(splitIdx + 1).trim();
     }
     const link = get('link');
-    const description = get('description');
+    const description = decodeEntities(get('description'));
     const pubDate = get('pubDate');
     const region = get('region');
     const categories = getAll('category');
