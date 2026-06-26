@@ -695,6 +695,25 @@ function toSlug(name){
     .replace(/(^-|-$)/g,'');
 }
 
+// ── Relevance filter ─────────────────────────────────────────────
+// Applied uniformly to every source's results, regardless of whether that
+// source's own API does its own (often loose/unreliable) search matching.
+// A job passes only if every word from the search query appears in the
+// job's TITLE specifically — not buried somewhere in a long description,
+// which is how "Account Coordinator" was previously slipping through a
+// "product manager" search (the words happened to appear separately,
+// somewhere in its description, without the job having anything to do with
+// product management). Title-only matching is intentionally the bar: tags
+// vary too much in specificity across sources to be a reliable signal on
+// their own (e.g. WWR's broad category buckets), so this keeps one
+// consistent, easy-to-reason-about rule for every source.
+function isRelevantToSearch(job,role){
+  const terms=(role||'').toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if(!terms.length) return true; // no search term to filter by — keep everything
+  const title=(job.title||'').toLowerCase();
+  return terms.every(t=>title.includes(t));
+}
+
 // ── Fetch from each source (each wrapped so one failure doesn't kill the rest) ──
 async function fetchJSON(url){
   const r=await fetch(url);
@@ -715,6 +734,11 @@ async function fetchRemotive(role){
   }));
 }
 async function fetchJobicy(role){
+  // Jobicy's tag param is free-text search against job title/description
+  // (their own docs only ever show single plain words like tag=python or
+  // tag=seo — never a hyphenated compound). Sending "product-manager" as
+  // one fused token matched nothing, which is why multi-word searches always
+  // returned 0 results here. Send the natural phrase instead.
   const tag=role.toLowerCase().trim();
   const d=await fetchJSON(`${API}/jobicy?tag=${encodeURIComponent(tag)}`);
   return (d.jobs||[]).map(j=>({
@@ -947,8 +971,12 @@ async function runSearch(){
   settled.forEach((res,i)=>{
     const srcKey=sources[i];
     if(res.status==='fulfilled'){
-      jobsBySource[srcKey]=res.value;
-      sourceHealth[srcKey]={ok:true,count:res.value.length,error:null};
+      const relevant=res.value.filter(j=>isRelevantToSearch(j,role));
+      jobsBySource[srcKey]=relevant;
+      // Report the count AFTER relevance filtering — this is what actually
+      // lands in results, so the source health panel reflects real, usable
+      // job counts rather than the upstream API's raw (often noisier) total.
+      sourceHealth[srcKey]={ok:true,count:relevant.length,error:null};
     } else {
       const msg=res.reason?.message||'Unknown error';
       errors.push(`${SOURCE_LABELS[srcKey]} failed: ${msg}`);
