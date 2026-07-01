@@ -5,10 +5,9 @@
 // This file calls into sources.js, ai.js, and render.js but contains
 // no fetching/AI/rendering logic of its own.
 // ════════════════════════════════════════════════════════════════
-import { API, BATCH_CONFIG, RESULT_LIMITS } from './config.js';
+import { API, BATCH_CONFIG, RESULT_LIMITS, AI_CONFIG } from './config.js';
 import { SOURCE_FETCHERS, SOURCE_LABELS, isRelevantToSearch, fetchLevelsData } from './sources.js';
-import { getKey, getKey2, setKey, clearKeyStorage, setKey2, clearKey2Storage,
-         getStaggerDelay, setStaggerDelay, isValidKey, runBatchedAnalysis } from './ai.js';
+import { runBatchedAnalysis } from './ai.js';
 import { renderAll, renderHealthBadge, renderPanel, toggleSkillRow as renderToggleSkillRow } from './render.js';
 
 // ── App state ─────────────────────────────────────────────────
@@ -43,6 +42,12 @@ function toggleTheme() {
   if (saved) { applyTheme(saved); }
   else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) { applyTheme('dark'); }
 })();
+
+// ── Populate AI provider name in settings from config ────────────
+// This keeps index.html provider-agnostic — only config.js needs
+// updating when switching AI providers.
+document.querySelector('#settingsPop .note').textContent =
+  `AI analysis is powered by ${AI_CONFIG.displayName}, running server-side. No API key needed here — it's configured on the server.`;
 
 // ── Sidebar collapse ─────────────────────────────────────────
 function toggleSidebar() {
@@ -138,55 +143,6 @@ function toggleSrc(rowEl) {
   }
 }
 
-// ── API key UI ────────────────────────────────────────────────
-// Saved from either the first-run banner or the settings popover;
-// both ultimately write through ai.js's storage functions.
-function saveKey(origin) {
-  const inputId = origin === 'settings' ? 'api-key-settings' : 'api-key';
-  const k = document.getElementById(inputId).value.trim();
-  if (!k) return;
-  setKey(k);
-  document.getElementById(inputId).value = '';
-  refreshKeyUI();
-  if (origin === 'settings') { document.getElementById('settingsPop').classList.remove('open'); }
-}
-function clearKey() {
-  clearKeyStorage();
-  refreshKeyUI();
-  document.getElementById('settingsPop').classList.remove('open');
-}
-function saveKey2() {
-  const k = document.getElementById('api-key2-settings').value.trim();
-  if (!k) return;
-  setKey2(k);
-  document.getElementById('api-key2-settings').value = '';
-  refreshKeyUI();
-}
-function clearKey2() {
-  clearKey2Storage();
-  refreshKeyUI();
-}
-function saveStaggerDelay() {
-  const val = parseFloat(document.getElementById('staggerDelay').value);
-  const safe = setStaggerDelay(val);
-  document.getElementById('staggerDelay').value = safe;
-}
-function refreshKeyUI() {
-  const hasKey = !!getKey();
-  document.getElementById('keyBanner').style.display = hasKey ? 'none' : 'block';
-  document.getElementById('key-saved').style.display = hasKey ? 'inline-block' : 'none';
-  document.getElementById('clearKeyBtn').style.display = hasKey ? 'inline-block' : 'none';
-  document.getElementById('api-key-settings').placeholder = hasKey ? 'Saved — hidden for security' : 'gsk_...';
-
-  const hasKey2 = !!getKey2();
-  document.getElementById('key2-saved').style.display = hasKey2 ? 'inline-block' : 'none';
-  document.getElementById('clearKey2Btn').style.display = hasKey2 ? 'inline-block' : 'none';
-  document.getElementById('api-key2-settings').placeholder = hasKey2 ? 'Saved — hidden for security' : 'gsk_...';
-
-  document.getElementById('staggerDelay').value = getStaggerDelay();
-}
-refreshKeyUI();
-
 // ── Tabs (Jobs / Skills Analysis) ──────────────────────────────
 function showTab(name, el) {
   ['jobs', 'skills'].forEach(t =>
@@ -239,8 +195,6 @@ function toggleSkillRow(row) { renderToggleSkillRow(row); }
 // ── Main search ───────────────────────────────────────────────
 async function runSearch() {
   if (!serverOk) { setStatus('Start the local server first (see instructions above).', false, true); return; }
-  const key = getKey();
-  if (!isValidKey(key)) { setStatus('Save your API key first.', false, true); return; }
 
   const role = document.getElementById('role').value.trim() || 'product manager';
   const sources = [...activeSources];
@@ -306,7 +260,7 @@ async function runSearch() {
   setStatus(`${finalJobs.length} real listings (${dupesRemoved} duplicates removed). Analysing each job (${BATCH_CONFIG.numBatches} parallel batches)...`, true);
   let byJobId, byCompany, analysisErrors;
   try {
-    const result = await runBatchedAnalysis(finalJobs, key, BATCH_CONFIG.numBatches);
+    const result = await runBatchedAnalysis(finalJobs, BATCH_CONFIG.numBatches);
     byJobId = result.byJobId; byCompany = result.byCompany; analysisErrors = result.errors;
     if (byJobId.size === 0) {
       throw new Error(analysisErrors[0] || 'All analysis batches failed');
@@ -375,7 +329,6 @@ function applyFiltersAndRender() {
 // need to find. Everything else stays module-private. ────────────
 Object.assign(window, {
   toggleTheme, toggleSidebar, toggleSettings, toggleSrc,
-  saveKey, clearKey, saveKey2, clearKey2, saveStaggerDelay,
   showTab, toggleHealthPanel,
   openPanel, closePanel, showPanelTab, toggleSkillRow,
   runSearch, applyFiltersAndRender,

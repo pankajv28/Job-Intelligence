@@ -184,11 +184,12 @@ const server = http.createServer(async (req, res) => {
   const originIsAllowed = ALLOWED_ORIGIN === '*' || requestOrigin === ALLOWED_ORIGIN;
 
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN === '*' ? '*' : (originIsAllowed ? requestOrigin : ALLOWED_ORIGIN));
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
-  if (req.method !== 'GET') { res.writeHead(405); res.end('{}'); return; }
+  if (req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405); res.end('{}'); return; }
 
   // Reject anything not coming from the allowed origin once one is actually
   // configured. Browsers already enforce CORS on the response side, but this
@@ -343,6 +344,61 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // ── AI proxy route ──────────────────────────────────────────
+    // Receives the job batch from the browser, forwards it to
+    // DeepSeek, and returns the response. The API key never touches
+    // the browser — it lives only in the DEEPSEEK_API_KEY env var
+    // set on Render (or in your local shell for development).
+    //
+    // To switch AI providers: change DEEPSEEK_API_URL and the
+    // Authorization header format below, and update config.js.
+    if (path === '/ai' && req.method === 'POST') {
+      const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
+      const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+
+      if (!DEEPSEEK_API_KEY) {
+        res.writeHead(500);
+        res.end(JSON.stringify({ error: 'DEEPSEEK_API_KEY environment variable not set on server.' }));
+        return;
+      }
+
+      // Read the POST body sent by the browser
+      const body = await new Promise((resolve, reject) => {
+        let raw = '';
+        req.on('data', chunk => { raw += chunk; });
+        req.on('end', () => resolve(raw));
+        req.on('error', reject);
+      });
+
+      // Forward to DeepSeek
+      const aiResponse = await new Promise((resolve, reject) => {
+        const bodyBuf = Buffer.from(body, 'utf8');
+        const options = {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+            'Content-Length': bodyBuf.length,
+            'Accept-Encoding': 'identity',
+          },
+          timeout: 60000, // AI calls can take longer than job board calls
+        };
+        const aiReq = https.request(DEEPSEEK_API_URL, options, (aiRes) => {
+          let data = '';
+          aiRes.on('data', chunk => { data += chunk; });
+          aiRes.on('end', () => resolve({ status: aiRes.statusCode, body: data }));
+        });
+        aiReq.on('error', reject);
+        aiReq.on('timeout', () => { aiReq.destroy(); reject(new Error('DeepSeek API timed out after 60s')); });
+        aiReq.write(bodyBuf);
+        aiReq.end();
+      });
+
+      res.writeHead(aiResponse.status);
+      res.end(aiResponse.body);
+      return;
+    }
+
     res.writeHead(404);
     res.end(JSON.stringify({ error: 'Unknown route' }));
 
@@ -361,6 +417,9 @@ server.listen(PORT, () => {
     console.log('  Open job-intelligence.html in your browser');
   }
   console.log('  Sources: Remotive, Jobicy, Himalayas, Remote OK, We Work Remotely, Levels.fyi');
+  console.log('  AI: DeepSeek V4 Flash (via /ai route)');
+  const hasKey = !!process.env.DEEPSEEK_API_KEY;
+  console.log('  DEEPSEEK_API_KEY:', hasKey ? 'set ✓' : 'NOT SET — AI analysis will fail');
   console.log('  Press Ctrl+C to stop');
   console.log('');
 });

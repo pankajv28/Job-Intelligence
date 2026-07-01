@@ -6,53 +6,53 @@
 // ════════════════════════════════════════════════════════════════
 
 // ── Backend server location ────────────────────────────────────
-// Auto-detects whether this page is running locally (file:// or
-// localhost, as during development) or as the deployed static site —
-// and points at the matching backend accordingly. Update
-// DEPLOYED_API_URL once you have your actual Render backend URL.
+// Auto-detects local vs deployed and points at the right backend.
+// Update DEPLOYED_API_URL if your Render backend URL changes.
 const DEPLOYED_API_URL = 'https://job-intelligence.onrender.com';
 const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:';
 export const API = isLocal ? 'http://localhost:3131' : DEPLOYED_API_URL;
 
 // ── AI provider settings ───────────────────────────────────────
-// This is the block you change when switching AI providers (e.g.
-// away from Groq). Everything here describes WHAT to call and HOW —
-// the actual calling code lives in ai.js and never hardcodes these
-// values itself.
+// To switch AI providers, update this block + the /ai route in
+// server.js. Nothing else in the codebase knows which provider
+// is in use.
+//
+// NOTE: The API key is NO LONGER stored in the browser.
+// It lives as an environment variable on the server (DEEPSEEK_API_KEY
+// on Render). This is more secure — the key is never exposed to
+// the browser at all.
 export const AI_CONFIG = {
-  endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-  model: 'llama-3.3-70b-versatile',
+  // The /ai route on your own server.js — server forwards to DeepSeek.
+  // This is why CORS is no longer a problem: browser → your server → DeepSeek.
+  endpoint: '/ai',
+  model: 'deepseek-v4-flash',
+  displayName: 'DeepSeek V4 Flash', // shown in the settings popover — update when switching providers
   temperature: 0.2,
   maxTokens: 7000,
-  // localStorage key names used to store the user's API key(s)
-  keyStorageName: 'groq_key',
-  key2StorageName: 'groq_key2',
-  // The key must start with this prefix, or runSearch() will refuse
-  // to use it (sanity check before burning a request). Set to ''
-  // to disable this check entirely for a different provider.
-  keyPrefix: 'gsk_',
 };
 
 // ── Batch analysis behaviour ───────────────────────────────────
+// numBatches controls how many parallel AI calls per search.
+// DeepSeek has generous rate limits so no stagger delay is needed —
+// all batches fire at once. Change numBatches to 2 or 1 to experiment
+// with fewer calls (more jobs per batch, slightly higher failure risk).
 export const BATCH_CONFIG = {
-  numBatches: 4,                  // how many parallel AI calls per search
-  defaultStaggerSeconds: 3,       // delay between a single key's own batches
-  maxStaggerSeconds: 60,          // upper bound allowed in the settings UI
+  numBatches: 4,
 };
 
 // ── Search result limits ───────────────────────────────────────
 export const RESULT_LIMITS = {
-  maxJobsPerSearch: 24,           // total jobs analysed per search, across all sources
-  maxCompaniesForLevelsLookup: 8, // how many companies get a Levels.fyi salary check
-  maxSkillsDisplayed: 16,         // top-N skills shown in the Skills tab
-  maxTagsInPrompt: 5,             // how many of a job's tags get sent to the AI
+  maxJobsPerSearch: 24,
+  maxCompaniesForLevelsLookup: 8,
+  maxSkillsDisplayed: 16,
+  maxTagsInPrompt: 5,
 };
 
 // ── Display / formatting ───────────────────────────────────────
 export const DISPLAY_CONFIG = {
-  inrPerUsd: 93,                  // USD → INR conversion rate used for salary display
-  lakhDivisor: 100000,            // 1 lakh = 100,000 — used to format INR as "₹12L"
-  newBadgeHours: 24,               // a job counts as "New" if posted within this many hours
+  inrPerUsd: 93,
+  lakhDivisor: 100000,
+  newBadgeHours: 24,
   dateLocale: 'en-IN',
 };
 
