@@ -28,7 +28,7 @@ export const AI_CONFIG = {
   model: 'deepseek-v4-flash',
   displayName: 'DeepSeek V4 Flash', // shown in the settings popover — update when switching providers
   temperature: 0.2,
-  maxTokens: 7000,
+  maxTokens: 16000,
 };
 
 // ── Batch analysis behaviour ───────────────────────────────────
