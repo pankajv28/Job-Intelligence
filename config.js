@@ -37,7 +37,7 @@ export const AI_CONFIG = {
 // all batches fire at once. Change numBatches to 2 or 1 to experiment
 // with fewer calls (more jobs per batch, slightly higher failure risk).
 export const BATCH_CONFIG = {
-  numBatches: 4,
+  numBatches: 6,
 };
 
 // ── Search result limits ───────────────────────────────────────

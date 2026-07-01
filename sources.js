@@ -99,7 +99,18 @@ async function fetchHimalayas(role) {
 
 async function fetchRemoteOK(role) {
   const d = await fetchJSON(`${API}/remoteok?search=${encodeURIComponent(role)}`);
-  return (d.jobs || []).map(j => ({
+  const terms = (role || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+
+  return (d.jobs || []).filter(j => {
+    // Remote OK's server already filtered by title+tags+description, so the
+    // client-side title-only check would be too strict here — a job tagged
+    // "product manager" with title "Growth Lead" is genuinely relevant.
+    // Instead we check title OR tags (not description — that's too loose).
+    if (!terms.length) return true;
+    const title = (j.position || '').toLowerCase();
+    const tags = (j.tags || []).join(' ').toLowerCase();
+    return terms.every(t => title.includes(t) || tags.includes(t));
+  }).map(j => ({
     id: 'remoteok_' + j.id, title: j.position || '', company: j.company || '',
     salary: j.salary_min ? `$${Math.round(j.salary_min / 1000)}k${j.salary_max && j.salary_max !== j.salary_min ? '–$' + Math.round(j.salary_max / 1000) + 'k' : ''}` : '',
     salaryMin: j.salary_min || 0, salaryMax: j.salary_max || j.salary_min || 0,

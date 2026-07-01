@@ -189,7 +189,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
-  if (req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405); res.end('{}'); return; }
+  if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'HEAD') { res.writeHead(405); res.end('{}'); return; }
 
   // Reject anything not coming from the allowed origin once one is actually
   // configured. Browsers already enforce CORS on the response side, but this
@@ -219,7 +219,7 @@ const server = http.createServer(async (req, res) => {
     // Health check
     if (path === '/health') {
       res.writeHead(200);
-      res.end(JSON.stringify({ ok: true, message: 'Server running' }));
+      res.end(req.method === 'HEAD' ? '' : JSON.stringify({ ok: true, message: 'Server running' }));
       return;
     }
 
@@ -381,7 +381,7 @@ const server = http.createServer(async (req, res) => {
             'Content-Length': bodyBuf.length,
             'Accept-Encoding': 'identity',
           },
-          timeout: 60000, // AI calls can take longer than job board calls
+          timeout: 90000, // AI calls can take longer than job board calls
         };
         const aiReq = https.request(DEEPSEEK_API_URL, options, (aiRes) => {
           let data = '';
