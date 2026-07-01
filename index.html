@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Remote Job Intelligence</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">
+      <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+        <defs>
+          <linearGradient id="logoG1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#8BE3BC"/>
+            <stop offset="100%" stop-color="#0A9A5B"/>
+          </linearGradient>
+          <linearGradient id="logoG2" x1="100%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#0B7A49"/>
+            <stop offset="100%" stop-color="#19B56F"/>
+          </linearGradient>
+        </defs>
+        <polygon points="256,70 390,150 256,230" fill="url(#logoG2)"/>
+        <polygon points="122,150 256,70 256,230" fill="url(#logoG1)"/>
+        <polygon points="122,150 122,340 256,420 256,230" fill="url(#logoG2)"/>
+        <polygon points="390,150 390,340 330,375 330,260 256,230" fill="url(#logoG1)"/>
+      </svg>
+    </div>
+    <div class="logo-text">Remote Job Intelligence</div>
+  </div>
+  <div class="topbar-right">
+    <button class="icon-btn" id="themeToggle" title="Toggle theme" onclick="toggleTheme()">☀️</button>
+    <button class="icon-btn" id="settingsBtn" title="Settings" onclick="toggleSettings()">⚙️</button>
+    <div class="settings-pop" id="settingsPop">
+      <div class="settings-pop-head">Groq API key <span class="badge" id="key-saved">Saved ✓</span></div>
+      <div class="settings-row">
+        <input type="password" id="api-key-settings" placeholder="gsk_..." autocomplete="off"/>
+        <button class="btn-sm" onclick="saveKey('settings')">Save</button>
+      </div>
+      <p class="note">Free at <a href="https://console.groq.com" target="_blank">console.groq.com</a>. Stored in your browser only.</p>
+      <button class="btn-clear" id="clearKeyBtn" onclick="clearKey()" style="display:none">Remove saved key</button>
+
+      <div class="settings-pop-head" style="margin-top:16px">Second key <span style="font-weight:400;color:var(--text3);font-size:11px">(optional)</span> <span class="badge" id="key2-saved">Saved ✓</span></div>
+      <div class="settings-row">
+        <input type="password" id="api-key2-settings" placeholder="gsk_..." autocomplete="off"/>
+        <button class="btn-sm" onclick="saveKey2()">Save</button>
+      </div>
+      <p class="note">On Groq's free tier, each key has its own rate limit. Adding a second key roughly doubles how much analysis can run in parallel per search — useful if searches are failing due to rate limits. Use a separate free account's key, not the same one twice.</p>
+      <button class="btn-clear" id="clearKey2Btn" onclick="clearKey2()" style="display:none">Remove second key</button>
+
+      <div class="settings-pop-head" style="margin-top:16px">Batch stagger delay</div>
+      <div class="settings-row">
+        <input type="number" id="staggerDelay" min="0" max="60" step="0.5" value="3" style="flex:1" onchange="saveStaggerDelay()"/>
+        <span style="font-size:12px;color:var(--text2);align-self:center">seconds</span>
+      </div>
+      <p class="note">Pause between a key's own batches, to stay under its per-minute token limit. With one key, total search wait ≈ 3 × this value (since 4 batches stagger sequentially). 3s is a reasonable starting point on the free tier; raise it if you're still seeing rate-limit failures.</p>
+    </div>
+  </div>
+</div>
+
+<div class="shell" id="shell">
+
+  <div class="sidebar-reopen" id="reopenBtn" onclick="toggleSidebar()">›</div>
+
+  <div class="sidebar" id="sidebar">
+    <div class="sb-section">
+      <div class="sb-label">Search</div>
+      <div class="sb-search-row">
+        <input type="text" class="sb-search" id="role" value="product manager" placeholder="Role / keyword"/>
+        <button class="sb-search-btn" id="searchBtn" onclick="runSearch()">→</button>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">Sources</div>
+      <div class="src-row" data-src="remotive" onclick="toggleSrc(this)"><div class="src-row-left"><div class="src-check on">✓</div>Remotive</div><div class="src-count" id="cnt-remotive">–</div></div>
+      <div class="src-row" data-src="jobicy" onclick="toggleSrc(this)"><div class="src-row-left"><div class="src-check on">✓</div>Jobicy</div><div class="src-count" id="cnt-jobicy">–</div></div>
+      <div class="src-row" data-src="himalayas" onclick="toggleSrc(this)"><div class="src-row-left"><div class="src-check on">✓</div>Himalayas</div><div class="src-count" id="cnt-himalayas">–</div></div>
+      <div class="src-row" data-src="remoteok" onclick="toggleSrc(this)"><div class="src-row-left"><div class="src-check on">✓</div>Remote OK</div><div class="src-count" id="cnt-remoteok">–</div></div>
+      <div class="src-row" data-src="wwr" onclick="toggleSrc(this)"><div class="src-row-left"><div class="src-check on">✓</div>We Work Remotely</div><div class="src-count" id="cnt-wwr">–</div></div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">Published date</div>
+      <select class="sb-select" id="dateFilter" onchange="applyFiltersAndRender()">
+        <option value="0">Any time</option>
+        <option value="1">Last 24 hours</option>
+        <option value="7">Last week</option>
+        <option value="30">Last month</option>
+      </select>
+    </div>
+
+    <div class="collapse-toggle" id="collapseBtn" onclick="toggleSidebar()">‹ Hide sidebar</div>
+  </div>
+
+  <div class="center">
+
+    <!-- First-run Groq key banner — shown only until a key is saved -->
+    <div class="key-banner" id="keyBanner">
+      <div class="key-banner-head">Groq API key</div>
+      <div class="settings-row">
+        <input type="password" id="api-key" placeholder="gsk_..." autocomplete="off"/>
+        <button class="btn-sm" onclick="saveKey('banner')">Save</button>
+      </div>
+      <p class="note">Free at <a href="https://console.groq.com" target="_blank">console.groq.com</a> — 30 sec signup. Only used to analyse real job descriptions. Stored in your browser only. You can change this later from the gear icon.</p>
+    </div>
+
+    <div class="status-bar" id="status">
+      <span id="serverBadge" class="health-badge"></span>
+      <span class="status-msg">Start the server first, then click Search.</span>
+      <span id="healthBadge" class="health-badge" style="display:none" onclick="toggleHealthPanel()"></span>
+    </div>
+    <div id="healthPanel" class="health-panel" style="display:none"></div>
+
+    <div id="results">
+      <div class="center-head">
+        <div class="center-title" id="r-title"></div>
+        <select class="sort-select" id="sortSelect" onchange="applyFiltersAndRender()">
+          <option value="recent">Sort by: Most recent</option>
+          <option value="salary">Sort by: Highest salary</option>
+        </select>
+      </div>
+      <div class="stats-grid" id="r-stats"></div>
+      <div class="tabs">
+        <div class="tab active" onclick="showTab('jobs',this)">Jobs</div>
+        <div class="tab" onclick="showTab('skills',this)">Skills Analysis</div>
+      </div>
+      <div id="tab-jobs"></div>
+      <div id="tab-skills" style="display:none"></div>
+    </div>
+
+  </div>
+
+  <div class="panel" id="panel">
+    <div id="panel-content"></div>
+  </div>
+
+</div>
+
+<div id="serverToast" class="server-toast"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
