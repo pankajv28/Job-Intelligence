@@ -24,7 +24,7 @@ export const API = isLocal ? 'http://localhost:3131' : DEPLOYED_API_URL;
 export const AI_CONFIG = {
   // The /ai route on your own server.js — server forwards to DeepSeek.
   // This is why CORS is no longer a problem: browser → your server → DeepSeek.
-  endpoint: '/ai',
+  endpoint: `${API}/ai`,
   model: 'deepseek-v4-flash',
   displayName: 'DeepSeek V4 Flash', // shown in the settings popover — update when switching providers
   temperature: 0.2,
